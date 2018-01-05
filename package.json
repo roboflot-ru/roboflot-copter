@@ -1,0 +1,24 @@
+{
+  "name": "roboflot-copter",
+  "version": "1.0.0",
+  "description": "Бортовое ПО для коптера",
+  "main": "main.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/roboflot-ru/roboflot-copter.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/roboflot-ru/roboflot-copter/issues"
+  },
+  "homepage": "https://github.com/roboflot-ru/roboflot-copter#readme",
+  "dependencies": {
+    "mavlink": "^1.0.1",
+    "rosnodejs": "^2.1.1",
+    "socket.io-client": "^2.0.4"
+  }
+}
