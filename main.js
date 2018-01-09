@@ -2,102 +2,160 @@
  * Created by nee on 06.01.2018.
  */
 
-
-import io from 'node_modules/socket.io-client'
-import mavlink from 'node_modules/mavlink'
-import mavlinkMessage from 'node_modules/mavlink'
-import rosnodejs, {Time} from 'node_modules/rosnodejs/dist/index.js'
-import msgUtil from 'node_modules/rosnodejs/dist/utils/message_utils.js'
-
-// MAVLink Parser (for conversion between ROSMAV - MAV)
-const MAVParser = new mavlink();
-
-// Destination server detail
+// Socket.io сервер
 const SOCKET_IO_SERVER = 'http://hub.roboflot.ru:3000';
-const socket           = io.connect(SOCKET_IO_SERVER);
 
-// Init ROS Node
-const NODENAME = "robot_communication";
+// название ноды
+const NODENAME = "roboweb";
+// параметры ноды
 const OPTIONS = { onTheFly : true };
+/*
+rosMasterUri
+Specify the ROS Master address programmatically rather than through the ROS_MASTER_URI environment variable.
 
-var publisher; // Var for hoising from within initNode Routine
+onTheFly
+Automatically generate messages to use rather than using the pre-generated messages.
+Will fall back to pre-generated messages if available.
 
+logging
+An object providing logging specific overrides. See logging for more information.
+
+node
+An object providing specific overrides to the ROS node itself. See Node for more information.
+
+
+rosnodejs.on('shutdown', function() {  });
+
+http://wiki.ros.org/mavros
+
+ */
+
+// используемые пакеты
+const io = require('socket.io-client');
+const mavlink = require('mavlink');
+const rosnodejs = require('rosnodejs');
+
+// MAVLink Parser (ROSMAV - MAV)
+//const MAVParser = new mavlink();
+
+//let publisher; // инициализация паблишера позже в rosnode
+
+let socket_io_status = 0;
+
+// соединяемся с сервером
+const socket = io.connect(SOCKET_IO_SERVER);
+
+
+socket.on('connect', () => {
+    console.log("Connected to SOCKET.IO SERVER ");
+
+    socket_io_status = 1;
+    //
+    socket.on('chat', (data)=>{
+        console.log('Data from server:' + data);
+        //MAVParser.parse(data);
+    });
+
+    socket.emit('chat','hello from robot');
+});
+
+socket.on('disconnect', () => {
+    console.log("Disconnected from SOCKET.IO SERVER ");
+    socket_io_status = 0;
+});
+
+socket.on('error', console.log);
+
+
+
+// Инициализация rosnode
+rosnodejs.initNode(NODENAME, OPTIONS).then(
+    (nodeHandler) => {
+
+
+        createSubscriber(nodeHandler);
+
+        //publisher = createPublisher(nodeHandler);
+
+    }
+);
+
+
+
+
+/*
 // Outermost ' wait for parser to be ready
 MAVParser.on('ready' , () => {
-    rosnodejs.initNode(NODENAME,OPTIONS).then(
-        (nodeHandle) => {
-            createSubscriber(nodeHandle);
-            checkSocketConnectivity();
-            publisher = createPublisher(nodeHandle);//HOISING TO OUTER SCOPE
-        }
-    );
-
-    // When receiving things from server
-    socket.on('from_server',(data)=>{ 
-        MAVParser.parse(data);
-    });
+    console.log('mavparser initialized');
 
     // When Parser is finished 
     MAVParser.on('message' , (message)=>{
         //PUB
         const mavros_message = createMavlinkMessage(message);
-        publisher.publish(mavros_message);
+        console.log(message);
+
+        //publisher.publish(mavros_message);
 
     });
 
 });
+*/
 
+/*
 // Create ROS Publisher
 const createPublisher = (nodeHandle) => {
-    return nodeHandle.advertise('/mavlink/from_gcs', 'mavros_msgs/Mavlink', {
+    console.log('creating publisher');
+
+    // Создаем паблишер const pub = nh.advertise('/topic', 'std_msgs/String');
+    return nodeHandle.advertise('/mavlink/to', 'mavros_msgs/Mavlink', {
         queueSize: 10,
         latching: true,
         throttleMs: 100
     });
-};
+    // tcpNoDelay
 
-// Create ROS Subscriber
+};
+*/
+
+
+
+// Подписываемся на топик ROS с сообщениями MAVLink для пульта управления от автопилота
 const createSubscriber = (nodeHandle) => {
-    rosnode_instance.subscribe('/mavlink/to_gcs','mavros_msgs/Mavlink',
+    nodeHandle.subscribe('/mavlink/from','mavros_msgs/Mavlink',
         (data)=>{
-            // Parse ROS Message to Buffer
-            let msgBuf = new Buffer(data.len + 8);
+            // после получения сообщения запаковываем его в бинарный формат MAVLink
+            let msgBuf = Buffer.alloc(data.len + 8);
             msgBuf.fill('\0');
 
             const payload64 = data.payload64.reduce(
-                (last,cur)=>Buffer.concat([last,cur.toBuffer('le',8)])
-            ,new Buffer(0)); 
+                (last,cur)=>Buffer.concat([last,cur.toBuffer('le',8)]), Buffer.alloc(0)
+            );
             
             // Create mavlink buffer
             msgBuf[0] = data.magic;
             msgBuf[1] = data.len;
             msgBuf[2] = data.seq;
-            msgBuf[3] = data.sysid;
-            msgBuf[4] = data.compid;
+            msgBuf[3] = data.sysid; // ID системы
+            msgBuf[4] = data.compid; // ID компьютера
             msgBuf[5] = data.msgid;
             payload64.copy(msgBuf,6,0);
             msgBuf.writeUInt16LE(data.checksum, data.len+6);
-            
-            // Socket Emit it out
-            socket.emit('chat',msgBuf);
+
+            // Отправляем на сервер
+            socket.emit('chat', msgBuf);
         },
     {
-      queueSize: 10,
-      throttleMs: 100
+        queueSize: 100
+        //,throttleMs: 100
     });
 };
 
-// Check SOCKET.IO on 'connect' connectivity 
-const checkSocketConnectivity = () =>{
-    socket.on('connect', () => {
-            console.log("[ROBOT]['connect'] Connected to SOCKET.IO SERVER ");
-    });
-};
 
+/*
 // Create ROS Message from incoming mavlink buffer
 const createMavlinkMessage = (incoming_msg) => {
     //msgUtil.getHandlerForMsgType('UINt64')
-      let byte_offset = 0;
+    let byte_offset = 0;
     let payload_64 = [];
 
     // Create Payload 64
@@ -122,17 +180,17 @@ const createMavlinkMessage = (incoming_msg) => {
         frame_id: ''
     });
     
-    const mav_message = new mavros_msgs_type.Mavlink({
+    return new mavros_msgs_type.Mavlink({
         // // Reuse a message to be sent
         header: header,
-        len: message.length,
-        seq: message.sequence,
-        sysid: message.system,
-        compid: message.component,
-        msgid: message.id,
-        checksum: message.checksum,
+        len: incoming_msg.length,
+        seq: incoming_msg.sequence,
+        sysid: incoming_msg.system,
+        compid: incoming_msg.component,
+        msgid: incoming_msg.id,
+        checksum: incoming_msg.checksum,
         payload64: payload_64
     });
-    
-    return mav_message;
+
 };
+*/

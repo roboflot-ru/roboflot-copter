@@ -146,6 +146,108 @@
 
 Запускаем QGroundControl на своем компьютере и соединеямся с портом 5762 по протоколу TCP, все должно работать
 
+Для запуска при загрузке системы используем системный сервис systemd.
+Создаем файл
+
+    sudo nano /etc/systemd/system/roscore.service
+
+с таким содержимым
+
+    [Unit]
+    Description=ROSCore Service
+    After=arducopter.service
+
+    [Service]
+    Type=simple
+    User=pi
+    WorkingDirectory=/home/pi
+    ExecStart=/home/pi/copter/scripts/roscore_start.sh
+    Restart=on-abort
+
+    [Install]
+    WantedBy=default.target
+
+
+сохраняем и перегружаем системные сервисы
+
+    sudo systemctl daemon-reload
+    sudo systemctl enable roscore
+    sudo systemctl start roscore
+
+Проверяем как работает
+
+	sudo systemctl status roscore
+
+
+### MAVROS node
+
+Создаем файл
+
+    sudo nano /etc/systemd/system/mavros.service
+
+с таким содержимым
+
+    [Unit]
+    Description=MAVROS Service
+    After=roscore.service
+
+    [Service]
+    Type=simple
+    User=pi
+    WorkingDirectory=/home/pi
+    ExecStart=/home/pi/copter/scripts/mavrosnode_start.sh
+    Restart=on-abort
+
+    [Install]
+    WantedBy=default.target
+
+сохраняем и перегружаем системные сервисы
+
+    sudo systemctl daemon-reload
+    sudo systemctl enable mavros
+    sudo systemctl start mavros
+
+Проверяем как работает
+
+	sudo systemctl status mavros
+
+
+
+### main.js
+
+Создаем файл
+
+    sudo nano /etc/systemd/system/cloudgcs.service
+
+с таким содержимым
+
+    [Unit]
+    Description=Roboflot CloudGCS Service
+    StandardOutput=journal
+    After=mavros.service
+
+    [Service]
+    Type=simple
+    User=pi
+    WorkingDirectory=/home/pi
+    ExecStart=/home/pi/copter/scripts/main_start.sh
+    Restart=on-abort
+
+    [Install]
+    WantedBy=default.target
+
+сохраняем и перегружаем системные сервисы
+
+    sudo systemctl daemon-reload
+    sudo systemctl enable cloudgcs
+    sudo systemctl start cloudgcs
+
+Проверяем как работает
+
+	sudo systemctl status cloudgcs
+
+
+
 
 ### Видеотрансляция
 
@@ -197,6 +299,36 @@
 
 
 На этом этапе дроном можно управлять из любого приложения (QGroundControl, APM Planner, Mission Planner, UgCS и других совместимых с протоколом MAVLink)
+
+
+### NodeJS
+
+Установка NodeJS https://nodejs.org/en/download/package-manager/#debian-and-ubuntu-based-linux-distributions
+
+    curl -sL https://deb.nodesource.com/setup_8.x | sudo -E bash -
+    sudo apt-get install -y nodejs
+    sudo apt-get install -y build-essential
+
+
+
+
+## Links
+
+https://gist.github.com/Tutorgaming/bc32560d133e50dc21d9fc1785647513
+
+https://github.com/socketio/engine.io-client
+
+https://github.com/arctic-fire-development/dapper-gcs/blob/master/server.js
+
+https://docs.emlid.com/navio2/common/dev/ros/#running-rostopic
+
+http://wiki.ros.org/mavros#Nodes
+
+https://github.com/RethinkRobotics-opensource/rosnodejs
+
+http://wiki.ros.org/rostopic
+
+https://mavlink.io/en/messages/common.html#mavlink-messages
 
 
 

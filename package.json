@@ -18,6 +18,7 @@
   "homepage": "https://github.com/roboflot-ru/roboflot-copter#readme",
   "dependencies": {
     "mavlink": "^1.0.1",
+    "require": "^2.4.20",
     "rosnodejs": "^2.1.1",
     "socket.io-client": "^2.0.4"
   }
