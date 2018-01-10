@@ -2,6 +2,8 @@
  * Created by nee on 06.01.2018.
  */
 
+const ROBOT_ID = '6c2039bf-b71b-4ebe-b06f-02abdb738963';
+
 // Socket.io сервер
 const SOCKET_IO_SERVER = 'http://hub.roboflot.ru:3000';
 
@@ -43,7 +45,7 @@ const rosnodejs = require('rosnodejs');
 let socket_io_status = 0;
 
 // соединяемся с сервером
-const socket = io.connect(SOCKET_IO_SERVER);
+const socket = io.connect(SOCKET_IO_SERVER + '?robot_id=' + ROBOT_ID);
 
 
 socket.on('connect', () => {
@@ -51,12 +53,12 @@ socket.on('connect', () => {
 
     socket_io_status = 1;
     //
-    socket.on('chat', (data)=>{
+    socket.on('fromserver', (data)=>{
         console.log('Data from server:' + data);
         //MAVParser.parse(data);
     });
 
-    socket.emit('chat','hello from robot');
+    //socket.emit('chat','hello from robot');
 });
 
 socket.on('disconnect', () => {
@@ -142,7 +144,7 @@ const createSubscriber = (nodeHandle) => {
             msgBuf.writeUInt16LE(data.checksum, data.len+6);
 
             // Отправляем на сервер
-            socket.emit('chat', msgBuf);
+            socket.emit('fromboard', msgBuf);
         },
     {
         queueSize: 100
