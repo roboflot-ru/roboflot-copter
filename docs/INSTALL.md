@@ -1,4 +1,3 @@
-
 # Установка и настройка ПО для дрона
 
 ## Железо
@@ -310,25 +309,28 @@
     sudo apt-get install -y build-essential
 
 
+### Менеджер процессов PM2
+
+    sudo npm install pm2 -g
 
 
-## Links
+### Roboflot-copter
 
-https://gist.github.com/Tutorgaming/bc32560d133e50dc21d9fc1785647513
+Клонируем этот репозиторий в папку copter и устанавливаем зависимости
 
-https://github.com/socketio/engine.io-client
+    git clone https://github.com/roboflot-ru/roboflot-copter.git copter
+    cd copter
+    npm install
 
-https://github.com/arctic-fire-development/dapper-gcs/blob/master/server.js
 
-https://docs.emlid.com/navio2/common/dev/ros/#running-rostopic
+### Запукаем скрипт
 
-http://wiki.ros.org/mavros#Nodes
+    node main
 
-https://github.com/RethinkRobotics-opensource/rosnodejs
 
-http://wiki.ros.org/rostopic
 
-https://mavlink.io/en/messages/common.html#mavlink-messages
+
+
 
 
 
