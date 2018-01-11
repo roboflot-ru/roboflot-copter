@@ -33,7 +33,7 @@ http://wiki.ros.org/mavros
  */
 
 // используемые пакеты
-const io = require('socket.io-client');
+const io = require('tcp_socket.io-client');
 const mavlink = require('mavlink');
 const rosnodejs = require('rosnodejs');
 
@@ -58,7 +58,7 @@ socket.on('connect', () => {
         //MAVParser.parse(data);
     });
 
-    //socket.emit('chat','hello from robot');
+    //tcp_socket.emit('chat','hello from robot');
 });
 
 socket.on('disconnect', () => {
