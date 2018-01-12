@@ -37,7 +37,9 @@
       key_mgmt=WPA-PSK
     }
 
-Устанавливаем SD карту в бортовой компьютер, включаем, находим в панели управления роутера IP адрес, подключаемся к компьютеру по SSH (пользователь pi, пароль raspberry).
+Устанавливаем SD карту в бортовой компьютер и включаем его.
+Находим в панели управления роутера IP адрес,
+подключаемся к компьютеру по SSH (пользователь pi, пароль raspberry).
 
 Расширяем файловую систему на весь объем карты:
 
@@ -56,6 +58,11 @@
 
     sudo apt-get update && sudo apt-get upgrade
 
+Тесты Navio 2
+
+    sudo emlidtool test
+
+
 
 ### Ardupilot
 
@@ -70,70 +77,12 @@
 
 параметр телеметрии указываем как
 
-	TELEM1="-A tcp:127.0.0.1:5760"
+	TELEM1="-A udp:127.0.0.1:14650"
 
-Телеметрия отправляется в локальный порт 5760, потом с помощью MAVProxy транслируется в TCP порты 5761 и 5762.
 Перегружаем компьютер и проверяем как работает Ardupilot
 
 	sudo systemctl status arducopter
 
-
-### MAVProxy
-
-Ретрансляция в порт 5761 для сервиса remot3.it, в порт 5762 для локального подключения.
-
-Пробуем как оно работает
-
-	mavproxy.py --master=tcp:127.0.0.1:5760 --out=tcpin:0.0.0.0:5761
-
-Скрипт mavproxy.py используется как ретранслятор телеметрии с внутреннего порта на внешние.
-Создаем скрипт для автозапуска
-
-    nano /home/pi/copter/mavproxy-start.sh
-
-с таким содержимым
-
-    #!/bin/bash
-
-    mavproxy.py --master=tcp:127.0.0.1:5760 --out=tcpin:0.0.0.0:5761  --out=tcpin:0.0.0.0:5762 --daemon
-
-Сохраняем и добавляем ему прав на исполнение:
-
-    sudo chmod +x mavproxy-start.sh
-
-Для запуска при загрузке системы используем системный сервис systemd.
-Создаем файл
-
-    sudo nano /etc/systemd/system/mavproxy.service
-
-с таким содержимым
-
-    [Unit]
-    Description=MAVProxy Service
-    After=arducopter.service
-
-    [Service]
-    Type=simple
-    User=pi
-    WorkingDirectory=/home/pi
-    ExecStart=/home/pi/copter/mavproxy-start.sh
-    Restart=on-abort
-
-    [Install]
-    WantedBy=default.target
-
-
-сохраняем и перегружаем системные сервисы
-
-    sudo systemctl daemon-reload
-    sudo systemctl enable mavproxy
-    sudo systemctl start mavproxy
-
-Проверяем как работает
-
-	sudo systemctl status mavproxy
-
-Если есть ошибки, то перегружаем компьютер и проверяем еще раз.
 
 
 ### ROS
@@ -178,7 +127,6 @@
 	sudo systemctl status roscore
 
 
-### MAVROS node
 
 Создаем файл
 
@@ -188,17 +136,18 @@
 
     [Unit]
     Description=MAVROS Service
-    After=roscore.service
+    After=arducopter.service
 
     [Service]
     Type=simple
     User=pi
     WorkingDirectory=/home/pi
-    ExecStart=/home/pi/copter/scripts/mavrosnode_start.sh
+    ExecStart=/home/pi/copter/scripts/mavros_start.sh
     Restart=on-abort
 
     [Install]
     WantedBy=default.target
+
 
 сохраняем и перегружаем системные сервисы
 
@@ -212,38 +161,36 @@
 
 
 
-### main.js
-
 Создаем файл
 
-    sudo nano /etc/systemd/system/cloudgcs.service
+    sudo nano /etc/systemd/system/robo.service
 
 с таким содержимым
 
-    [Unit]
-    Description=Roboflot CloudGCS Service
-    StandardOutput=journal
-    After=mavros.service
+[Unit]
+Description=ROBO Service
+After=arducopter.service
 
-    [Service]
-    Type=simple
-    User=pi
-    WorkingDirectory=/home/pi
-    ExecStart=/home/pi/copter/scripts/main_start.sh
-    Restart=on-abort
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi
+ExecStart=/home/pi/copter/scripts/main_start.sh
+Restart=on-abort
 
-    [Install]
-    WantedBy=default.target
+[Install]
+WantedBy=default.target
+
 
 сохраняем и перегружаем системные сервисы
 
     sudo systemctl daemon-reload
-    sudo systemctl enable cloudgcs
-    sudo systemctl start cloudgcs
+    sudo systemctl enable robo
+    sudo systemctl start robo
 
 Проверяем как работает
 
-	sudo systemctl status cloudgcs
+	sudo systemctl status robo
 
 
 
@@ -257,6 +204,7 @@
 Устанавливаем необходимые пакеты:
 
     sudo apt-get install gstreamer1.0-tools gstreamer1.0-plugins-good gstreamer1.0-plugins-bad
+    sudo modprobe bcm2835-v4l2
 
 Создаем файл для автозапуска
 
@@ -269,7 +217,7 @@
     After=network.target
 
     [Service]
-    ExecStart=/bin/sh -c "/usr/bin/raspivid -t 0 -w 640 -h 480 -fps 15 -hf -b 2000000 -o - | gst-launch-1.0 -v fdsrc ! h264parse ! rtph264pay config-interval=1 pt=96 ! gdppay ! tcpserversink host=0.0.0.0 port=5000"
+    ExecStart=/bin/sh -c "modprobe bcm2835-v4l2 && gst-launch-1.0 -v v4l2src ! video/x-raw, width=320, height=240 ! timeoverlay text="T:" shaded-background=true ! jpegenc quality=20 ! multipartmux  boundary="--videoboundary" ! tcpserversink host=0.0.0.0 port=5001"
 
     [Install]
     WantedBy=default.target
@@ -280,24 +228,8 @@
     sudo systemctl enable raspicam
     sudo systemctl restart raspicam
 
-Для проверки видео на компьютере оператора запускаем (установка пакетов в ссылках выше).
-
-    gst-launch-1.0 -v tcpclientsrc host=RASPBERRY_IP port=5000 ! gdpdepay ! rtph264depay ! avdec_h264 ! videoconvert ! autovideosink sync=false
-
 После выполнения команды должно открыться окошко с видеотрансляцией.
 
-
-### remot3.it
-
-Установка сервиса remot3.it на Raspbian https://remot3it.zendesk.com/hc/en-us/articles/115006015367-Installing-the-remot3-it-weavedconnectd-daemon-on-your-Raspberry-Pi.
-Настраиваем порты:
-
-    22 - SSH
-    5761 - MAVProxy
-    5000 - видео
-
-
-На этом этапе дроном можно управлять из любого приложения (QGroundControl, APM Planner, Mission Planner, UgCS и других совместимых с протоколом MAVLink)
 
 
 ### NodeJS
@@ -305,8 +237,7 @@
 Установка NodeJS https://nodejs.org/en/download/package-manager/#debian-and-ubuntu-based-linux-distributions
 
     curl -sL https://deb.nodesource.com/setup_8.x | sudo -E bash -
-    sudo apt-get install -y nodejs
-    sudo apt-get install -y build-essential
+    sudo apt-get install -y nodejs build-essential
 
 
 ### Менеджер процессов PM2
@@ -325,7 +256,9 @@
 
 ### Запукаем скрипт
 
-    node main
+    pm2 start main
+    pm2 startup
+    pm2 save
 
 
 
