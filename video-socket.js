@@ -85,4 +85,5 @@ tcp_socket.on('error', function(error) { console.log('tcp socket down'); });
 tcp_socket.on('close', function() {
     console.log('TCP tcp_socket closed');
     return process.exit(22);
+
 });

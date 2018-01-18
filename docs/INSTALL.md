@@ -78,10 +78,92 @@
 параметр телеметрии указываем как
 
 	TELEM1="-A udp:127.0.0.1:14650"
+	TELEM2="-A udp:127.0.0.1:14651"
+
+    ARDUPILOT_OPTS="$TELEM1 $TELEM2"
+
+
+14650 - порт для mavros
+14651 - порт для mavproxy
 
 Перегружаем компьютер и проверяем как работает Ardupilot
 
 	sudo systemctl status arducopter
+
+
+### MAVProxy
+
+Ретрансляция в порт 5761 для сервиса remot3.it, в порт 5762 для локального подключения.
+
+Пробуем как оно работает
+
+	mavproxy.py --master=udp:127.0.0.1:14651 --out=tcpin:0.0.0.0:5761
+
+Скрипт mavproxy.py используется как ретранслятор телеметрии с внутреннего порта на внешние.
+Скрипт для автозапуска
+
+    /scripts/mavproxy-start.sh
+
+с таким содержимым
+
+    #!/bin/bash
+
+    mavproxy.py --master=udp:127.0.0.1:14651 --out=tcpin:0.0.0.0:5761  --out=tcpin:0.0.0.0:5762 --daemon
+
+Сохраняем и добавляем ему прав на исполнение:
+
+    sudo chmod +x mavproxy-start.sh
+
+Для запуска при загрузке системы используем системный сервис systemd.
+Создаем файл
+
+    sudo nano /etc/systemd/system/mavproxy.service
+
+с таким содержимым
+
+    [Unit]
+    Description=MAVProxy Service
+    After=arducopter.service
+
+    [Service]
+    Type=simple
+    User=pi
+    WorkingDirectory=/home/pi
+    ExecStart=/home/pi/copter/mavproxy_start.sh
+    Restart=on-abort
+
+    [Install]
+    WantedBy=default.target
+
+
+сохраняем и перегружаем системные сервисы
+
+    sudo systemctl daemon-reload
+    sudo systemctl enable mavproxy
+    sudo systemctl start mavproxy
+
+Проверяем как работает
+
+	sudo systemctl status mavproxy
+
+Теперь мы можем соединиться с бортом в локальной сети через GCS, используя IP-адрес борта и порт 5762
+
+
+
+### remot3.it
+
+Установка сервиса remot3.it на Raspbian https://remot3it.zendesk.com/hc/en-us/articles/115006015367-Installing-the-remot3-it-weavedconnectd-daemon-on-your-Raspberry-Pi.
+Настраиваем порты:
+
+    22 - SSH
+    5761 - MAVProxy
+    5000 - видео
+
+
+Теперь дроном можно управлять из любого приложения (QGroundControl, APM Planner, Mission Planner, UgCS и других совместимых с протоколом MAVLink)
+через интернет.
+
+
 
 
 
@@ -167,19 +249,19 @@
 
 с таким содержимым
 
-[Unit]
-Description=ROBO Service
-After=arducopter.service
+    [Unit]
+    Description=ROBO Service
+    After=arducopter.service
 
-[Service]
-Type=simple
-User=pi
-WorkingDirectory=/home/pi
-ExecStart=/home/pi/copter/scripts/main_start.sh
-Restart=on-abort
+    [Service]
+    Type=simple
+    User=pi
+    WorkingDirectory=/home/pi
+    ExecStart=/home/pi/copter/scripts/main_start.sh
+    Restart=on-abort
 
-[Install]
-WantedBy=default.target
+    [Install]
+    WantedBy=default.target
 
 
 сохраняем и перегружаем системные сервисы

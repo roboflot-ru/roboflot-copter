@@ -145,6 +145,7 @@ const createSubscriber = (nodeHandle) => {
 
             // Отправляем на сервер
             socket.emit('fromboard', msgBuf);
+            console.log('msg emited');
         },
     {
         queueSize: 100
