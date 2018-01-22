@@ -1,125 +1,73 @@
-# Установка и настройка ПО для дрона
-
-## Железо
-
-В качестве бортового компьютера используется Raspberry Pi 3 B+.
-На него устанавливается модуль Navio 2 с набором датчиков и периферией для управления дроном.
-Репозиторий с исходниками Emlid Github https://github.com/emlid.
+# How to control autopilot on Raspberry and Navio over intermet
 
 
-## ПО
 
-Компьютер работает на Linux образе Raspbian Stretch.
-Управление дроном и автопилот Arducopter 3.5.
-Разные функции для автономного полета ROS.
+## Hardware
 
-Весь набор сразу в готовом образе для Navio 2 https://docs.emlid.com/navio2/common/ardupilot/configuring-raspberry-pi/.
+Raspberry Pi 3B+
+https://www.raspberrypi.org/products/raspberry-pi-3-model-b/
 
-
-## Установка ПО
-
-### Установка образа на карту и обновление дистрибутива
-
-Установка образа на SD карту
-Скачиваем образ системы Raspbian Stretch отсюда (https://docs.emlid.com/navio2/common/ardupilot/configuring-raspberry-pi/).
-Инструкция по установке там же. Записываем образ на SD карту с помощью Etcher или аналога.
+Navio 2 board
+https://emlid.com/navio/
 
 
-После записи открываем в разделе BOOT файл
+## Make SD card with OS image and configure it
 
-    /boot/wpa_supplicant.conf
+Download configured Raspbian image and make initial setup from here
+https://docs.emlid.com/navio2/common/ardupilot/configuring-raspberry-pi/
 
-и добавляем туда имя сети и пароль к которой компьютер будет подключаться по умолчанию
 
-    network={
-      ssid="yourssid"
-      psk="yourpasskey"
-      key_mgmt=WPA-PSK
-    }
-
-Устанавливаем SD карту в бортовой компьютер и включаем его.
-Находим в панели управления роутера IP адрес,
-подключаемся к компьютеру по SSH (пользователь pi, пароль raspberry).
-
-Расширяем файловую систему на весь объем карты:
-
-    sudo raspi-config --expand-rootfs
-
-Перегружаем, подключаемся снова и запускаем утилиту конфигурации
+Configure your Raspberry
 
     sudo raspi-config
 
-Устанавливаем:
-локаль en-US-UTF8
-Часовой пояс Europe/Moscow
-Страна в настройках WiFi: Russia
-
-Сохраняем настройки и перегружаем компьютер. Подключаемся снова и обновляем ПО
-
-    sudo apt-get update && sudo apt-get upgrade
-
-Тесты Navio 2
+Test emlid tool and Navio 2 sensors
 
     sudo emlidtool test
 
 
 
-### Ardupilot
+## Ardupilot
 
-Для первой настройки Ardupilot запускаем утилиту
+Configure Ardupilot on this instruction
+https://docs.emlid.com/navio2/common/ardupilot/installation-and-running/
 
-    sudo emlidtool ardupilot
+Note UDP port on ardupilot telemetry settings, it will be used later
 
-Выбираем arducopter, последнюю версию, включаем запуск при старте системы и сохраняем.
-В файле настроек
+    TELEM1="-A udp:127.0.0.1:14550"
 
-    sudo nano /etc/default/arducopter
-
-параметр телеметрии указываем как
-
-	TELEM1="-A udp:127.0.0.1:14650"
-	TELEM2="-A udp:127.0.0.1:14651"
-
-    ARDUPILOT_OPTS="$TELEM1 $TELEM2"
-
-
-14650 - порт для mavros
-14651 - порт для mavproxy
-
-Перегружаем компьютер и проверяем как работает Ardupilot
+Reboot Raspberry and check if arducopter is running
 
 	sudo systemctl status arducopter
 
 
-### MAVProxy
 
-Ретрансляция в порт 5761 для сервиса remot3.it, в порт 5762 для локального подключения.
+## MAVProxy
 
-Пробуем как оно работает
+We use MAVProxy to stream telemetry messages to different ports:
+5761 - connect your desktop or mobile GCS using remot3.it (see below)
+5762 - connect your desktop or mobile GCS over local network
+5763 - used by mavlink-io-client.js to stream mavlink messages to socket.io server
 
-	mavproxy.py --master=udp:127.0.0.1:14651 --out=tcpin:0.0.0.0:5761
 
-Скрипт mavproxy.py используется как ретранслятор телеметрии с внутреннего порта на внешние.
-Скрипт для автозапуска
+Run this command on board computer and connect to it using desktop GCS (e.g. QGroundControl).
+Use TCP connection with IP address of ypur raspberry and port 6762
 
-    /scripts/mavproxy-start.sh
+	mavproxy.py --master=udp:127.0.0.1:14550 --out=tcpin:0.0.0.0:5762
 
-с таким содержимым
+To start mavproxy with all ports described use script:
 
-    #!/bin/bash
+    /scripts/mavproxy_start.sh
 
-    mavproxy.py --master=udp:127.0.0.1:14651 --out=tcpin:0.0.0.0:5761  --out=tcpin:0.0.0.0:5762 --daemon
+Make it start on boot:
 
-Сохраняем и добавляем ему прав на исполнение:
+    sudo chmod +x mavproxy_start.sh
 
-    sudo chmod +x mavproxy-start.sh
-
-Для запуска при загрузке системы используем системный сервис systemd.
-Создаем файл
+Make service startup file
 
     sudo nano /etc/systemd/system/mavproxy.service
 
-с таким содержимым
+with content
 
     [Unit]
     Description=MAVProxy Service
@@ -129,170 +77,96 @@
     Type=simple
     User=pi
     WorkingDirectory=/home/pi
-    ExecStart=/home/pi/copter/mavproxy_start.sh
+    ExecStart=/home/pi/copter/scripts/mavproxy_start.sh
     Restart=on-abort
 
     [Install]
     WantedBy=default.target
 
 
-сохраняем и перегружаем системные сервисы
+Save it with Ctrl+X, reload system services and start it
 
     sudo systemctl daemon-reload
     sudo systemctl enable mavproxy
     sudo systemctl start mavproxy
 
-Проверяем как работает
+Check how it is working
 
 	sudo systemctl status mavproxy
 
-Теперь мы можем соединиться с бортом в локальной сети через GCS, используя IP-адрес борта и порт 5762
+Now you can use your favourite GCS to connect (TCP) to autopilot over local network
+using IP address of the board computer (Ethernet or WiFi connected) and port 5762.
 
 
 
-### remot3.it
+## remot3.it
 
-Установка сервиса remot3.it на Raspbian https://remot3it.zendesk.com/hc/en-us/articles/115006015367-Installing-the-remot3-it-weavedconnectd-daemon-on-your-Raspberry-Pi.
-Настраиваем порты:
+remote3.it is a web service which helps us to connect with board computer over internet.
+It is configured to use default SSH port for remote software updates
+and also 5761 port to connect desktop GCS to your autopilot over internet.
+
+Install and configure it using this manual:
+https://remot3it.zendesk.com/hc/en-us/articles/115006015367-Installing-the-remot3-it-weavedconnectd-daemon-on-your-Raspberry-Pi.
 
     22 - SSH
-    5761 - MAVProxy
-    5000 - видео
+    5761 - MAVProxy (TCP port)
 
-
-Теперь дроном можно управлять из любого приложения (QGroundControl, APM Planner, Mission Planner, UgCS и других совместимых с протоколом MAVLink)
-через интернет.
-
+Now you can use your favourite GCS to connect (TCP) to autopilot over local internet
+using temporary static address of your device from remot3.it
 
 
 
+## Video streaming
 
-### ROS
+To check video streaming from Raspicam you can use this instructions:
 
-Настройка из инструкции Navio https://docs.emlid.com/navio2/common/dev/ros/
+UDP streaming
+https://docs.emlid.com/navio2/common/dev/video-streaming/.
 
-    sudo echo "source /opt/ros/kinetic/setup.bash" >> ~/.bashrc
-    sudo /opt/ros/kinetic/lib/mavros/install_geographiclib_datasets.sh
+TCP streaming
+https://raspberrypi.stackexchange.com/questions/12156/is-it-possible-to-stream-h-264-with-rtsp-on-raspberry-pi.
 
-Запускаем QGroundControl на своем компьютере и соединеямся с портом 5762 по протоколу TCP, все должно работать
-
-Для запуска при загрузке системы используем системный сервис systemd.
-Создаем файл
-
-    sudo nano /etc/systemd/system/roscore.service
-
-с таким содержимым
-
-    [Unit]
-    Description=ROSCore Service
-    After=arducopter.service
-
-    [Service]
-    Type=simple
-    User=pi
-    WorkingDirectory=/home/pi
-    ExecStart=/home/pi/copter/scripts/roscore_start.sh
-    Restart=on-abort
-
-    [Install]
-    WantedBy=default.target
+You can use remot3.it to configure streaming over internet (e.g. port 5000)
 
 
-сохраняем и перегружаем системные сервисы
+To stream video over socket.io we use gstreamer to cut video into frames.
 
-    sudo systemctl daemon-reload
-    sudo systemctl enable roscore
-    sudo systemctl start roscore
-
-Проверяем как работает
-
-	sudo systemctl status roscore
-
-
-
-Создаем файл
-
-    sudo nano /etc/systemd/system/mavros.service
-
-с таким содержимым
-
-    [Unit]
-    Description=MAVROS Service
-    After=arducopter.service
-
-    [Service]
-    Type=simple
-    User=pi
-    WorkingDirectory=/home/pi
-    ExecStart=/home/pi/copter/scripts/mavros_start.sh
-    Restart=on-abort
-
-    [Install]
-    WantedBy=default.target
-
-
-сохраняем и перегружаем системные сервисы
-
-    sudo systemctl daemon-reload
-    sudo systemctl enable mavros
-    sudo systemctl start mavros
-
-Проверяем как работает
-
-	sudo systemctl status mavros
-
-
-
-Создаем файл
-
-    sudo nano /etc/systemd/system/robo.service
-
-с таким содержимым
-
-    [Unit]
-    Description=ROBO Service
-    After=arducopter.service
-
-    [Service]
-    Type=simple
-    User=pi
-    WorkingDirectory=/home/pi
-    ExecStart=/home/pi/copter/scripts/main_start.sh
-    Restart=on-abort
-
-    [Install]
-    WantedBy=default.target
-
-
-сохраняем и перегружаем системные сервисы
-
-    sudo systemctl daemon-reload
-    sudo systemctl enable robo
-    sudo systemctl start robo
-
-Проверяем как работает
-
-	sudo systemctl status robo
-
-
-
-
-### Видеотрансляция
-
-Настройка видеотрансляции с камеры Raspicam по UDP для локальной сети https://docs.emlid.com/navio2/common/dev/video-streaming/.
-Настройка для TCP https://raspberrypi.stackexchange.com/questions/12156/is-it-possible-to-stream-h-264-with-rtsp-on-raspberry-pi.
-
-Настраиваем на TCP порт, чтобы к нему мог подключаться сервис remot3.it.
-Устанавливаем необходимые пакеты:
+Install dependencies:
 
     sudo apt-get install gstreamer1.0-tools gstreamer1.0-plugins-good gstreamer1.0-plugins-bad
-    sudo modprobe bcm2835-v4l2
 
-Создаем файл для автозапуска
+Check local streaming
+Run on your board computer with camera connected
+
+    raspivid -t 0 -hf -fps 25 -w 640 -h 480 -o - | gst-launch-1.0 fdsrc ! h264parse ! rtph264pay config-interval=1 pt=96 ! gdppay ! tcpserversink host=0.0.0.0 port=5001
+
+This will make streaming TCP server on port 5001
+
+Run on your PC (MacOS, Linux) (for Windows check links above),
+replace RPI_ADDRESS with you board computer IP address:
+
+    gst-launch-1.0 -v tcpclientsrc host=RPI_ADDRESS port=5001  ! gdpdepay !  rtph264depay ! avdec_h264 ! videoconvert ! autovideosink sync=false
+
+A window with video streaming should open.
+Ctrl+C to cancel streaming.
+
+Using this commands you can test your video streaming with different dimensions and frame rates.
+
+
+## Video streaming using socket.io
+
+This command makes gstreamer cut video into frames and pass it to our video-io.js script
+
+    sudo modprobe bcm2835-v4l2
+    gst-launch-1.0 -v v4l2src ! video/x-raw, width=320, height=240 ! timeoverlay text="T:" shaded-background=true ! jpegenc quality=20 ! multipartmux  boundary="--videoboundary" ! tcpserversink host=0.0.0.0 port=5001
+
+Check if it runs without errors on you board computer.
+
+Then make startup file
 
     sudo nano /etc/systemd/system/raspicam.service
 
-с таким содержимым:
+with content (set your desired video dimensions):
 
     [Unit]
     Description=raspivid
@@ -304,48 +178,101 @@
     [Install]
     WantedBy=default.target
 
-Сохраняем файл (Ctrl+X, y), включаем и запускаем сервис:
+Save with Ctrl+X, relaod system services and start streaming:
 
     sudo systemctl daemon-reload
     sudo systemctl enable raspicam
     sudo systemctl restart raspicam
 
-После выполнения команды должно открыться окошко с видеотрансляцией.
 
 
+## NodeJS
 
-### NodeJS
-
-Установка NodeJS https://nodejs.org/en/download/package-manager/#debian-and-ubuntu-based-linux-distributions
+Install NodeJS to run javascript files on your computer:
+https://nodejs.org/en/download/package-manager/#debian-and-ubuntu-based-linux-distributions
 
     curl -sL https://deb.nodesource.com/setup_8.x | sudo -E bash -
     sudo apt-get install -y nodejs build-essential
 
 
-### Менеджер процессов PM2
 
-    sudo npm install pm2 -g
+## Roboflot-copter
 
-
-### Roboflot-copter
-
-Клонируем этот репозиторий в папку copter и устанавливаем зависимости
+Clone this repository and install dependencies
 
     git clone https://github.com/roboflot-ru/roboflot-copter.git copter
     cd copter
     npm install
 
+Before running onboard scripts you will have to instal server-side components on separate computer or server.
+Check https://github.com/roboflot-ru/roboflot-dashboard
+Get your ROBOT_ID and server IP address and configure mavlink-io-client.js, then run
 
-### Запукаем скрипт
-
-    pm2 start main
-    pm2 startup
-    pm2 save
-
+    node mavlink-io-client.js
 
 
 
+## Autostart on boot
 
+To run scrpts on startup we use PM2 process manager
+http://pm2.keymetrics.io
+
+Install it using command
+
+    sudo npm install pm2 -g
+
+
+
+
+## Tests
+
+### ADC
+
+    cd ~/Navio2/Python
+    python ADC.py
+
+Mapping between A0 - A5 and ADC:
+A0 - board voltage (shows 5V)
+A1 - servo rail voltage
+A2 - power module voltage (ADC0, POWER port)
+A3 - power module current (ADC1, POWER port)
+A4 - ADC2 (ADC port)
+A5 - ADC3 (ADC port)
+Numbers of A0 - A5 channels correspond to ArduPilot's ADC channels.
+
+
+### RCIO
+
+    cat /sys/kernel/rcio/status/alive
+
+RCIO is powered on and detected by Raspberry Pi if the result of above operation is 1.
+0 shows that RCIO is not connected. First of all check the hardware connection between Navio2 and Raspberry Pi
+
+
+### Barometer and temperature
+
+    python Barometer.py
+
+You should see pressure and temperature values.
+Keep in mind that board tends to get hot from Raspberry and would show slightly
+higher temperature than it is in your room.
+
+
+### IMU
+
+    python AccelGyroMag.py -i mpu
+
+### GPS
+
+    python GPS.py
+
+### RGB LED
+
+    sudo python LED.py
+
+### Emlid tool
+
+    emlidtool test
 
 
 

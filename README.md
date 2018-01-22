@@ -1,30 +1,46 @@
-# Описание
+# DESCRIPTION
 
-ПО для установки на беспилотный дрон, машину, лодку.
-Постоянно соединен с сервером через 4G для передачи и записи телеметрии и видео.
-Может управляться через web-панель управления.
-Это репозиторий с бортовой частью.
-Web-панель управления и серверная часть здесь: https://github.com/roboflot-ru/roboflot-dashboard
+Install this package on your onboard or ground companion computer to control Ardupilot-based drones and rovers over Internet.
+You can use any type of connection and combination (WiFi, Ethernet, 4G).
 
-
-# Описание и схема модулей ПО
-
-https://docs.google.com/document/d/1Ux4xZ_k4HXWTkOcQuVfoA2YsbgD5DIVFCRXJQnf1HAI/edit?usp=sharing
+Ardupilot <=> Navio 2 <=> Raspberry Pi <=> 4G <=> socket.io <=> cloud server <=> browser
 
 
-# Установка
-
-ПО тестировалось на Raspberry Pi 3 B+ с установленным контроллером Navio 2.
-Инструкция по установке в файле docs/INSTALL.md
-
-# Развитие проекта
-
-Вы можете поучаствовать в развитии проекта!
-Пожалуйста, сообщите об ошибке или о необходимой функции https://github.com/roboflot-ru/roboflot-copter/issues
+It's tested with Raspberry Pi 3 B+ and Navio 2 controller with Arducpoter 3.5.
+Check docs/INSTALL.md for installation instructions.
+It works with web-based GCS https://github.com/roboflot-ru/roboflot-dashboard
 
 
-https://www.roboflot.ru
+## mavlink-io-client.js
+
+Reads mavlink telemetry from UDP port and transmits it to web-based GCS.
+You need to configure it first in order to work. Check comments on top of file.
+Then run
+
+    node mavlink-io-client.js
 
 
+## video-io.js
+
+Reads video frames from local TCP (prepaired by Gstreamer from Raspicam) and streams them to client's browser over socket.io.
+Check Video Streaming section in docs/INSTALL.md
+
+
+
+# INSTALLATION
+
+Check docs/INSTALL.md for installation instructions.
+
+Clone and install from repository
+
+    git clone https://github.com/roboflot-ru/roboflot-copter.git copter
+    cd copter
+    npm install
+
+
+## Autostart on boot
+
+If you are happy with this scripts, you can run them on system boot using PM2 process manager
+http://pm2.keymetrics.io
 
 

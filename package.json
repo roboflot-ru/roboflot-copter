@@ -2,7 +2,7 @@
   "name": "roboflot-copter",
   "version": "1.0.0",
   "description": "Бортовое ПО для коптера",
-  "main": "main.js",
+  "main": "mavlink-io-client.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
@@ -17,6 +17,7 @@
   },
   "homepage": "https://github.com/roboflot-ru/roboflot-copter#readme",
   "dependencies": {
+    "dgram": "^1.0.1",
     "dicer": "^0.2.5",
     "mavlink": "^1.0.1",
     "net": "^1.0.2",

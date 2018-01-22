@@ -2,6 +2,9 @@
  * Created by nee on 06.01.2018.
  */
 
+
+
+
 const ROBOT_ID = '6c2039bf-b71b-4ebe-b06f-02abdb738963';
 
 // Socket.io сервер
@@ -54,7 +57,7 @@ socket.on('connect', () => {
     socket_io_status = 1;
     //
     socket.on('fromserver', (data)=>{
-        console.log('Data from server:' + data);
+        console.log('Data from udp_server:' + data);
         //MAVParser.parse(data);
     });
 
@@ -81,7 +84,6 @@ rosnodejs.initNode(NODENAME, OPTIONS).then(
 
     }
 );
-
 
 
 
